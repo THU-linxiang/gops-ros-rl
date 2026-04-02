@@ -1,0 +1,205 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="parking_world">
+
+    <!-- ========== 基础物理设置 ========== -->
+    <physics type="ode">
+      <real_time_update_rate>1000</real_time_update_rate>  <!-- 每秒物理步数 -->
+      <max_step_size>0.001</max_step_size>                 <!-- 每步0.001s，仿真精度 -->
+      <real_time_factor>1</real_time_factor>               <!-- 1=实时，<1=慢动作，>1=加速 -->
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>50</iters>
+        </solver>
+      </ode>
+      <publish_contacts>true</publish_contacts> 
+    </physics>
+
+    <!-- ========== 光照 ========== -->
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- ========== 地面 ========== -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ========================================== -->
+    <!--        停车场外围墙 6x6，墙高0.5m           -->
+    <!--  场地范围：x[-3,3]，y[-3,3]，原点为中心      -->
+    <!--  墙厚0.1m，墙中心线在场地边沿外侧            -->
+    <!-- ========================================== -->
+
+    <!-- 北墙：y=3 -->
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0 3.05 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>6.2 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>6.2 0.1 0.5</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 东墙：x=3 -->
+    <model name="wall_east">
+      <static>true</static>
+      <pose>3.05 0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>0.1 6 0.5</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.1 6 0.5</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 西墙：x=-3 -->
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-3.05 0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>0.1 6 0.5</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.1 6 0.5</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 南墙：y=-3  -->
+    <model name="wall_south_left">
+      <static>true</static>
+      <pose>0 -3.05 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>6.2 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>6.2 0.1 0.5</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+      </link>
+    </model>
+    
+<!-- ========================================== -->
+<!--   车库边界（仅视觉，无碰撞）：1x1           -->
+<!--   中心点：(0, -2)                          -->
+<!--   范围：x[-0.5,0.5]，y[-2.5,-1.5]         -->
+<!--   开口朝向 y 正方向，蓝色虚线表示            -->
+<!-- ========================================== -->
+    <model name="garage_boundary">
+      <static>true</static>
+      <pose>0 -2 0 0 0 0</pose>  <!-- 模型原点在车库中心 -->
+      <link name="link">
+
+        <!-- 后墙：相对y=-0.5（绝对y=-2.5），5段虚线沿x轴 -->
+        <!-- 5×0.12m + 4×0.10m间隔 = 1.0m -->
+        <visual name="back_d1"><pose>-0.44 -0.5 0.01 0 0 0</pose>
+          <geometry><box><size>0.12 0.02 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="back_d2"><pose>-0.22 -0.5 0.01 0 0 0</pose>
+          <geometry><box><size>0.12 0.02 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="back_d3"><pose>0.00 -0.5 0.01 0 0 0</pose>
+          <geometry><box><size>0.12 0.02 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="back_d4"><pose>0.22 -0.5 0.01 0 0 0</pose>
+          <geometry><box><size>0.12 0.02 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="back_d5"><pose>0.44 -0.5 0.01 0 0 0</pose>
+          <geometry><box><size>0.12 0.02 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+
+        <!-- 左墙：相对x=-0.5，5段虚线沿y轴 -->
+        <visual name="left_d1"><pose>-0.5 -0.44 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="left_d2"><pose>-0.5 -0.22 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="left_d3"><pose>-0.5  0.00 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="left_d4"><pose>-0.5  0.22 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="left_d5"><pose>-0.5  0.44 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+
+        <!-- 右墙：相对x=+0.5，5段虚线沿y轴 -->
+        <visual name="right_d1"><pose>0.5 -0.44 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="right_d2"><pose>0.5 -0.22 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="right_d3"><pose>0.5  0.00 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="right_d4"><pose>0.5  0.22 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+        <visual name="right_d5"><pose>0.5  0.44 0.01 0 0 0</pose>
+          <geometry><box><size>0.02 0.12 0.005</size></box></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material></visual>
+
+      </link>
+    </model>
+  </world>
+</sdf>
+

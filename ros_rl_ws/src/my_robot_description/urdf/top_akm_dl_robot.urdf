@@ -1,0 +1,290 @@
+<?xml version="1.0" ?>
+<robot name="wheeltec_robot">
+
+    <link name="base_link">
+        <visual>
+            <origin xyz="0.255 0 0.19" rpy="0 0 0" />
+            <geometry>
+                <box size="0.762 0.35 0.150"/>
+            </geometry>
+            <material name="white">
+                <color rgba="1 1 1 1"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0.265 0 0.19" rpy="0 0 0" />
+            <geometry>
+                <box size="0.77 0.672 0.150"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="5.0"/>
+            <origin xyz="0.255 0 0.19" rpy="0 0 0"/>
+            <inertia ixx="0.1" ixy="0" ixz="0"
+                     iyy="0.1" iyz="0"
+                     izz="0.1"/>
+        </inertial>
+    </link>
+
+    <!-- ========== 左后轮 ========== -->
+    <joint name="left_wheel_joint" type="continuous">
+        <origin xyz="0 0.295 0.12" rpy="-1.57 0 0"/>
+        <parent link="base_link"/>
+        <child link="left_wheel_link"/>
+        <axis xyz="0 0 1"/> 
+    </joint>
+
+    <link name="left_wheel_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+            <material name="black">
+                <color rgba="0 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="1.0"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.003" ixy="0" ixz="0"
+                     iyy="0.003" iyz="0"
+                     izz="0.006"/>
+        </inertial>
+    </link>
+
+    <!-- ========== 右后轮 ========== -->
+    <joint name="right_wheel_joint" type="continuous">
+        <origin xyz="0 -0.295 0.12" rpy="-1.57 0 0"/>
+        <parent link="base_link"/>
+        <child link="right_wheel_link"/>
+        <axis xyz="0 0 1"/>
+    </joint>
+
+    <link name="right_wheel_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+            <material name="black">
+                <color rgba="0 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="1.0"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.003" ixy="0" ixz="0"
+                     iyy="0.003" iyz="0"
+                     izz="0.006"/>
+        </inertial>
+    </link>
+
+
+    <!-- ========== 左前轮 ========== -->
+
+    <joint name="left_front_joint" type="continuous">
+        <origin xyz="0.53 0.295 0.12" rpy="1.57 0 0"/>
+        <parent link="base_link"/>
+        <child link="left_front_link"/>
+        <axis xyz="0 0 1"/>
+    </joint>
+
+    <link name="left_front_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+            <material name="black">
+                <color rgba="0 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="1.0"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.003" ixy="0" ixz="0"
+                     iyy="0.003" iyz="0"
+                     izz="0.006"/>
+        </inertial>
+    </link>
+
+    <!-- ========== 右前轮 ========== -->
+
+    <joint name="right_front_joint" type="continuous">
+        <origin xyz="0.53 -0.295 0.12" rpy="1.57 0 0"/>
+        <parent link="base_link"/>
+        <child link="right_front_link"/>
+        <axis xyz="0 0 1"/>
+    </joint>
+
+    <link name="right_front_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+            <material name="black">
+                <color rgba="0 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.12" length="0.08"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="1.0"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.003" ixy="0" ixz="0"
+                     iyy="0.003" iyz="0"
+                     izz="0.006"/>
+        </inertial>
+    </link>
+
+    <!-- ========== 雷达 link ========== -->
+    <joint name="lidar_joint" type="fixed">
+        <origin xyz="0.53 0 0.29" rpy="0 0 0"/>
+        <parent link="base_link"/>
+        <child link="lidar_link"/>
+    </joint>
+
+    <link name="lidar_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.05" length="0.05"/>
+            </geometry>
+            <material name="black">
+                <color rgba="0 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.05" length="0.05"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="0.1"/>
+            <inertia ixx="0.0001" ixy="0" ixz="0"
+                    iyy="0.0001" iyz="0"
+                    izz="0.0001"/>
+        </inertial>
+    </link>
+
+    <!-- ========== 轮子摩擦力设置 ========== -->
+    <gazebo reference="left_wheel_link">
+        <mu1>1.0</mu1>
+        <mu2>1.0</mu2>
+        <kp>1e6</kp>
+        <kd>100</kd>
+    </gazebo>
+
+    <gazebo reference="right_wheel_link">
+        <mu1>1.0</mu1>
+        <mu2>1.0</mu2>
+        <kp>1e6</kp>
+        <kd>100</kd>
+    </gazebo>
+
+    <gazebo reference="left_front_link">
+        <mu1>0</mu1>
+        <mu2>0</mu2>
+        <kp>1e6</kp>
+        <kd>100</kd>
+    </gazebo>
+
+    <gazebo reference="right_front_link">
+        <mu1>0</mu1>
+        <mu2>0</mu2>
+        <kp>1e6</kp>
+        <kd>100</kd>
+    </gazebo>
+
+    <!-- ========== 差速驱动插件 ========== -->
+    <gazebo>
+        <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
+            <leftJoint>left_wheel_joint</leftJoint>
+            <rightJoint>right_wheel_joint</rightJoint>
+            <wheelSeparation>0.59</wheelSeparation>
+            <wheelDiameter>0.24</wheelDiameter>
+            <maxVelocity>0.3</maxVelocity>
+            <commandTopic>cmd_vel</commandTopic>
+            <odometryTopic>odom</odometryTopic>
+            <odometryFrame>odom</odometryFrame>
+            <robotBaseFrame>base_link</robotBaseFrame>
+            <publishOdomTF>true</publishOdomTF>
+            <publishTf>true</publishTf>
+            <updateRate>50</updateRate>
+        </plugin>
+    </gazebo>
+
+    <!-- ========== 激光雷达插件 ========== -->
+    <gazebo reference="lidar_link">
+        <sensor type="ray" name="lidar_sensor">
+            <pose>0 0 0 0 0 0</pose>
+            <visualize>false</visualize>
+            <update_rate>10</update_rate> 
+            <ray>
+                <scan>
+                    <horizontal>
+                        <samples>360</samples> 
+                        <resolution>1</resolution>
+                        <min_angle>-3.14159</min_angle>
+                        <max_angle>3.14159</max_angle>
+                    </horizontal>
+                </scan>
+                <range>
+                    <min>0.10</min>
+                    <max>10.0</max>
+                    <resolution>0.01</resolution>
+                </range>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.01</stddev>
+                </noise>
+            </ray>
+            <plugin name="gazebo_ros_laser" filename="libgazebo_ros_laser.so">
+                <topicName>/scan</topicName>
+                <frameName>lidar_link</frameName>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <!-- ========== 碰撞检测传感器 ========== -->
+    <gazebo reference="base_link">
+        <sensor name="base_contact_sensor" type="contact">
+            <always_on>true</always_on>   
+            <contact>
+                <collision>base_link_collision</collision>
+            </contact>
+            <plugin name="base_contact_plugin" filename="libgazebo_ros_bumper.so">
+                <bumperTopicName>/robot_contacts</bumperTopicName>
+                <frameName>world</frameName>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+
+</robot>

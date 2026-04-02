@@ -1,0 +1,11 @@
+<launch>
+  <!-- 先启动完整仿真环境 -->
+  <include file="$(find my_robot_gazebo)/launch/main_sim.launch"/>
+
+  <!-- 稍等3秒让Gazebo完全启动后再运行生成器 -->
+  <node name="env_generator_test"
+        pkg="my_env_generator"
+        type="env_generator.py"
+        output="screen"
+        launch-prefix="bash -c 'sleep 3; $0 $@'"/>
+</launch>

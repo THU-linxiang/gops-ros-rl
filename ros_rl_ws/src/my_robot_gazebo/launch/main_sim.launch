@@ -1,0 +1,25 @@
+<launch>
+
+  <!-- 启动Gazebo -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find my_robot_gazebo)/worlds/parking_world.world"/>
+    <arg name="gui" value="true"/>
+  </include>
+
+  <!-- 读取URDF -->
+  <param name="robot_description"
+         textfile="$(find my_robot_description)/urdf/top_akm_dl_robot.urdf"/>
+
+  <!-- 在Gazebo生成机器人 -->
+  <node name="spawn_urdf"
+        pkg="gazebo_ros"
+        type="spawn_model"
+        args="-param robot_description -urdf -model my_robot -z 0.3"
+        output="screen"/>
+
+  <!-- 发布TF坐标变换 -->
+  <node name="robot_state_publisher"
+        pkg="robot_state_publisher"
+        type="robot_state_publisher"/>
+
+</launch>

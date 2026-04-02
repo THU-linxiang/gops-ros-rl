@@ -1,0 +1,95 @@
+ros_rl_ws/                                    # Catkin工作空间根目录
+│
+├── src/                                      # 所有源码放这里
+│   │
+│   ├── CMakeLists.txt                        # 顶层CMake文件，catkin自动生成，不要手动修改
+│   │
+│   │
+│   ├── my_robot_description/                 # 包1：车辆的静态描述
+│   │   ├── CMakeLists.txt                    # 本包的编译规则
+│   │   ├── package.xml                       # 本包的元数据与依赖声明
+│   │   │
+│   │   ├── urdf/
+│   │   │   └── top_akm_dl_robot.urdf         # 阿克曼底盘主模型文件
+│   │   │
+│   │   └── launch/
+│   │       └─── view.launch                   # 仅用于rviz可视化调试，不启动Gazebo
+│   │
+│   ├── my_robot_gazebo/                      # 包2：仿真运行配置
+│   │   ├── CMakeLists.txt
+│   │   ├── package.xml
+│   │   │
+│   │   ├── launch/
+│   │   |   └── main_sim.launch               # 负责将URDF模型生成到Gazebo世界中
+│   │   │
+│   │   └── worlds/
+│   │       └── parking_world.world           # 生成停车区域围墙和车库
+│   │   
+│   │
+│   │
+│   ├── my_env_generator/                     # 包3：随机环境生成器
+│   │   ├── CMakeLists.txt
+│   │   ├── package.xml
+│   │   │
+│   │   ├── scripts/
+│   │   │   └── env_generator.py              # 核心：随机生成障碍物和初始化车辆位置
+│   │   │                                     
+│   │   │
+│   │   ├── launch/
+│   │   │   └── env_generator.launch          # 仅用于单独测试随机场景生成，不含RL训练逻辑
+│   │   │
+│   │   └── config/
+│   │       └── env_params.yaml               # 场景参数（障碍物数量范围、场地尺寸、车库位置等）
+│   │
+│   │
+│   └── gops_ros_bridge/                      # 包4：接口层
+│       ├── CMakeLists.txt
+│       ├── package.xml
+│       │
+│       └── scripts/
+│           ├── gazebo_env.py                 # 标准Gym接口实现
+│           │                                 # 内部处理：话题订阅、动作发布、奖励计算、done判断
+│           │                                 # 对外暴露标准的 reset() 和 step()
+│           │
+│           ├── gops_wrapper.py               # GOPS适配层
+│           │                                 # 内部调用 gazebo_env.py
+│           │                                 # 对外声明 obs_dim、action_dim、obs_scale 等GOPS要求的属性
+│           │
+│           └── test_env.py                   # 单独测试脚本，不涉及GOPS，验证reset/step是否正常工作
+│
+│
+├── build/                                    # catkin_make自动生成，存放编译中间产物，不要手动修改
+└── devel/                                    # catkin_make自动生成
+    └── setup.bash                            # 激活工作空间的关键脚本，每次新开终端需要source它
+
+
+
+
+
+my_robot_description        （无内部依赖，只依赖ROS官方的urdf/xacro包）
+        ↑
+my_robot_gazebo             （依赖 my_robot_description，负责把它加载进Gazebo）
+        ↑
+my_env_generator            （依赖 my_robot_gazebo 已经运行，通过Service与Gazebo通信）
+        ↑
+gops_ros_bridge             （依赖 my_env_generator，组合所有功能暴露给GOPS）
+        ↑
+GOPS（外部项目）             （只认识 gops_wrapper.py，感知不到下面三层的存在）
+
+
+
+Gazebo仿真
+  │
+  ├─ 发布 /scan   (LaserScan)  ──→┐
+  ├─ 发布 /odom   (Odometry)   ──→┤  gazebo_env.py 订阅并打包成obs
+  │                               ↓
+  │                          gops_wrapper.py
+  │                               ↓
+  │                          GOPS策略网络 → 输出action
+  │                               ↓
+  │                          gazebo_env.py 发布 /cmd_vel (Twist)
+  │◁──────────────────────────────┘
+  │
+  └─ 接收 /gazebo/spawn_sdf_model  (Service)  ← env_generator.py（reset时生成障碍物）
+  └─ 接收 /gazebo/delete_model     (Service)  ← env_generator.py（reset时清除上一轮）
+  └─ 接收 /gazebo/set_model_state  (Service)  ← env_generator.py（reset时重置车辆位姿）
