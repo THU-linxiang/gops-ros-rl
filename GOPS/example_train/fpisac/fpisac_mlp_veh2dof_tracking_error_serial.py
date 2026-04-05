@@ -18,6 +18,7 @@ from gops.create_pkg.create_evaluator import create_evaluator
 from gops.create_pkg.create_sampler import create_sampler
 from gops.create_pkg.create_trainer import create_trainer
 from gops.utils.init_args import init_args
+from gops.utils.tensorboard_autostart import maybe_start_tensorboard
 
 
 if __name__ == "__main__":
@@ -27,6 +28,10 @@ if __name__ == "__main__":
     ################################################
     # Key Parameters for users
     parser.add_argument("--env_id", type=str, default="pyth_gazebo_parking")
+    parser.add_argument("--sampler_env_id", type=str, default="pyth_gazebo_parking")
+    parser.add_argument("--evaluator_env_id", type=str, default="pyth_gazebo_parking")
+    parser.add_argument("--sampler_bridge_env_id", type=str, default="sampler")
+    parser.add_argument("--evaluator_bridge_env_id", type=str, default="evaluator")
     parser.add_argument("--algorithm", type=str, default="FPISAC")
     parser.add_argument("--pre_horizon", type=int, default=30)
     parser.add_argument("--enable_cuda", default=False)
@@ -87,6 +92,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--max_iteration", type=int, default=100000)
     parser.add_argument("--ini_network_dir", type=str, default=None)
+    parser.add_argument("--blocking_eval", dest="blocking_eval", action="store_true")
+    parser.add_argument("--no_blocking_eval", dest="blocking_eval", action="store_false")
+    parser.set_defaults(blocking_eval=True)
+    parser.add_argument("--auto_tensorboard", dest="auto_tensorboard", action="store_true")
+    parser.add_argument("--no_auto_tensorboard", dest="auto_tensorboard", action="store_false")
+    parser.set_defaults(auto_tensorboard=True)
+    parser.add_argument("--tensorboard_port", type=int, default=6006)
+    parser.add_argument("--tensorboard_host", type=str, default="0.0.0.0")
 
     # 4.1. Parameters for off_serial_trainer
     parser.add_argument("--buffer_name", type=str, default="replay_buffer")
@@ -104,8 +117,8 @@ if __name__ == "__main__":
     # 6. Parameters for evaluator
     parser.add_argument("--evaluator_name", type=str, default="evaluator")
     parser.add_argument("--num_eval_episode", type=int, default=10)
-    parser.add_argument("--eval_interval", type=int, default=1000000)
-    parser.add_argument("--eval_save", type=str, default=False, help="save evaluation data")
+    parser.add_argument("--eval_interval", type=int, default=2000)
+    parser.add_argument("--eval_save", type=bool, default=False, help="save evaluation data")
 
     ################################################
     # 7. Data savings
@@ -118,6 +131,11 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     env = create_env(**args)
     args = init_args(env, **args)
+    # Temporary env is only used to infer env-related args; close it before
+    # creating sampler/evaluator envs.
+    if hasattr(env, "close"):
+        env.close()
+    maybe_start_tensorboard(args)
     # Step 1: create algorithm and approximate function
     alg = create_alg(**args)
     # Step 2: create sampler in trainer

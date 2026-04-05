@@ -17,13 +17,23 @@ from gops.utils.common_utils import set_seed
 
 class Evaluator:
     def __init__(self, index=0, **kwargs):
-        kwargs.update({
+        env_kwargs = kwargs.copy()
+        env_kwargs.update({
             "reward_scale": None,
             "repeat_num": None,
             "gym2gymnasium": False,
             "vector_env_num": None,
         })
-        self.env = create_env(**kwargs)
+        evaluator_env_id = env_kwargs.get("evaluator_env_id")
+        if evaluator_env_id is not None:
+            env_kwargs["env_id"] = evaluator_env_id
+        evaluator_bridge_env_id = env_kwargs.get("evaluator_bridge_env_id")
+        if evaluator_bridge_env_id is not None:
+            env_kwargs["bridge_env_id"] = evaluator_bridge_env_id
+        else:
+            env_kwargs.setdefault("bridge_env_id", "evaluator")
+
+        self.env = create_env(**env_kwargs)
 
         _, self.env = set_seed(kwargs["trainer"], kwargs["seed"], index + 400, self.env)
 

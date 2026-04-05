@@ -4,6 +4,7 @@
 import rospy
 import numpy as np
 import gym
+import importlib.util
 from gym import spaces
 from geometry_msgs.msg import Twist
 from gazebo_msgs.msg import ContactsState
@@ -14,8 +15,20 @@ import tf.transformations as tft
 
 
 import sys
-sys.path.append('/home/lin/ros_rl_ws/src/my_env_generator/scripts')
-from env_generator import EnvGenerator
+import os
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_GEN_DIR = os.path.abspath(
+    os.path.join(CURRENT_DIR, "..", "..", "my_env_generator", "scripts")
+)
+ENV_GEN_PATH = os.path.join(ENV_GEN_DIR, "env_generator.py")
+
+_env_gen_spec = importlib.util.spec_from_file_location("env_generator", ENV_GEN_PATH)
+if _env_gen_spec is None or _env_gen_spec.loader is None:
+    raise ImportError(f"Cannot load env_generator from {ENV_GEN_PATH}")
+_env_gen_module = importlib.util.module_from_spec(_env_gen_spec)
+_env_gen_spec.loader.exec_module(_env_gen_module)
+EnvGenerator = _env_gen_module.EnvGenerator
 
  
 def angle_normalize(x):
@@ -25,13 +38,15 @@ def angle_normalize(x):
 
 class GazeboEnv(gym.Env):
     """
-    观测空间（41维)：
-      [0]    v_norm          当前线速度归一化
-      [1]    w_norm          当前角速度归一化
-      [2:38] lidar×36        雷达降采样（360→36），归一化到[0,1]
-      [38]   rel_dist        到车库距离，归一化
-      [39]   rel_angle       车库方向相对车头角度
-      [40]   heading_err     朝向误差
+    观测空间（43维)：
+    [0]    v_norm          当前线速度归一化
+    [1]    w_norm          当前角速度归一化
+    [2:38] lidar×36        雷达降采样（360→36），归一化到[0,1]
+    [38]   rel_dist        到车库距离，归一化
+    [39]   sin(rel_angle)  车库方向相对车头角度的正弦
+    [40]   cos(rel_angle)  车库方向相对车头角度的余弦
+    [41]   sin(heading_err)朝向误差的正弦
+    [42]   cos(heading_err)朝向误差的余弦
 
     动作空间（2维)：
       [0]  Δv   线速度增量
@@ -71,8 +86,8 @@ class GazeboEnv(gym.Env):
                         self.W_DELTA_MAX * self.dt], dtype=np.float32)
         self.action_space = spaces.Box(low=lb, high=hb, dtype=np.float32)
 
-        # 观测空间：41维，归一化到[-1,1]
-        obs_dim = 2 + self.N_LIDAR_BEAMS + 3
+        # 观测空间：43维，归一化到[-1,1]
+        obs_dim = 2 + self.N_LIDAR_BEAMS + 5
         self.observation_space = spaces.Box(
             low  = np.full(obs_dim, -1.0, dtype=np.float32),
             high = np.full(obs_dim,  1.0, dtype=np.float32),
@@ -92,6 +107,7 @@ class GazeboEnv(gym.Env):
         # 传感器缓存
         self._scan_data  = None
         self._odom_data  = None
+        self._last_odom_seq = None
         self._lidar_norm = np.ones(self.N_LIDAR_BEAMS)  # 归一化
 
         # ROS 订阅
@@ -121,13 +137,18 @@ class GazeboEnv(gym.Env):
 
         stop = Twist()
         self.cmd_pub.publish(stop)
+
+        prev_odom_seq = self._last_odom_seq
         
 
         # 暂停物理，安全布置场景
         self.pause()
         self.goal_x, self.goal_y = self.env_gen.reset_env(n_obstacles)
         self.unpause()
-        rospy.sleep(0.5)
+
+        # Wait for fresh odom after teleport/reset so first obs matches new pose.
+        self._wait_for_new_odom(prev_odom_seq, timeout=1.0)
+        rospy.sleep(0.05)
 
         self.collision  = False
 
@@ -154,11 +175,9 @@ class GazeboEnv(gym.Env):
         self.current_w = np.clip(self.current_w + delta_w,
                                  -self.W_MAX, self.W_MAX)
         
-        v_min = min(self.R_MIN * abs(self.current_w), self.V_MAX)
-        if self.current_v >= 0:
-            self.current_v = max(self.current_v, v_min)
-        elif self.current_v < 0:
-            self.current_v = min(self.current_v, -v_min)
+        w_max = abs(self.current_v) / self.R_MIN
+        self.current_w = np.clip(self.current_w, -w_max, w_max)
+           
                 
         self.unpause()
 
@@ -272,13 +291,24 @@ class GazeboEnv(gym.Env):
         dy = self.goal_y - y
         rel_dist    = np.clip(np.hypot(dx, dy) / self.LIDAR_MAX_RANGE,
                               0.0, 1.0)
-        rel_angle   = angle_normalize(np.arctan2(dy, dx) - theta) / np.pi
-        heading_err = angle_normalize(self.goal_theta - theta) / np.pi
+        rel_angle = angle_normalize(np.arctan2(dy, dx) - theta)
+        heading_err = angle_normalize(self.goal_theta - theta)
+
+        rel_angle_sin = np.sin(rel_angle)
+        rel_angle_cos = np.cos(rel_angle)
+        heading_err_sin = np.sin(heading_err)
+        heading_err_cos = np.cos(heading_err)
 
         return np.concatenate([
             [v_norm, w_norm],
             self._lidar_norm,
-            [rel_dist, rel_angle, heading_err],
+            [
+                rel_dist,
+                rel_angle_sin,
+                rel_angle_cos,
+                heading_err_sin,
+                heading_err_cos,
+            ],
         ]).astype(np.float32)
 
 
@@ -288,6 +318,26 @@ class GazeboEnv(gym.Env):
         """等待传感器数据到位"""
         rate = rospy.Rate(100)
         while self._scan_data is None or self._odom_data is None:
+            rate.sleep()
+
+    def _wait_for_new_odom(self, prev_seq, timeout=1.0):
+        """等待 reset 后新一帧 odom，避免读取到 reset 前缓存数据。"""
+        if self._odom_data is None:
+            self._wait_for_sensors()
+            return
+
+        if prev_seq is None:
+            return
+
+        start_t = rospy.Time.now().to_sec()
+        rate = rospy.Rate(200)
+        while not rospy.is_shutdown():
+            if self._last_odom_seq is not None and self._last_odom_seq > prev_seq:
+                return
+            now_t = rospy.Time.now().to_sec()
+            if now_t - start_t > timeout:
+                rospy.logwarn("reset 后等待新 odom 超时，继续执行")
+                return
             rate.sleep()
 
     def _get_pose(self):
@@ -306,6 +356,7 @@ class GazeboEnv(gym.Env):
 
     def _odom_cb(self, msg):
         self._odom_data = msg
+        self._last_odom_seq = msg.header.seq
 
     def _contact_cb(self, msg):
         for state in msg.states:
@@ -330,18 +381,17 @@ if __name__ == '__main__':
 
     rospy.loginfo("=== 测试 reset ===")
     obs = env.reset(n_obstacles=7)
-    rospy.loginfo(f"obs shape: {obs.shape}")   # 期望 (41,)
+    rospy.loginfo(f"obs shape: {obs.shape}")   # 期望 (43,)
     rospy.loginfo(f"obs: {obs}")
 
     rospy.loginfo("=== 测试 step ===")
     for i in range(1000):
-        # action = env.action_space.sample()  # 随机动作，测试用
-        action = np.array([0, 0.03])
+        action = env.action_space.sample()  # 随机动作，测试用
         rospy.loginfo(f"step {i}: action={action}")
         obs, reward, done, info = env.step(action)
         x, y, theta = env._get_pose()
         rospy.loginfo(f"step {i}: pose=({x:.2f}, {y:.2f}, {theta:.2f}), reward={reward:.3f}, done={done}")
-        rospy.loginfo(f"step {i}: obs={[env.current_v, env.current_w, obs[39:]]}")
+        rospy.loginfo(f"step {i}: obs_tail={obs[38:43]}")
 
         if done:
             obs = env.reset(n_obstacles=7)

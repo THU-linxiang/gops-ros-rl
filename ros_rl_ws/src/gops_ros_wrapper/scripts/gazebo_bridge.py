@@ -4,9 +4,17 @@
 """
 
 import sys
-sys.path.append('/home/lin/ros_rl_ws/src/my_env_generator/scripts')
+import os
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_GEN_DIR = os.path.abspath(
+    os.path.join(CURRENT_DIR, "..", "..", "my_env_generator", "scripts")
+)
+if ENV_GEN_DIR not in sys.path:
+    sys.path.append(ENV_GEN_DIR)
 
 import json
+import threading
 import numpy as np
 import rospy
 from std_msgs.msg import String
@@ -26,6 +34,9 @@ class GazeboBridge:
         # 发布：reset 之后的初始 obs
         self.pub_reset_result = rospy.Publisher("/rl/reset_result", String, queue_size=1)
 
+        # Gazebo step/reset must be serialized across sampler/evaluator requests.
+        self._env_lock = threading.Lock()
+
         # 订阅：GOPS 发来的 action
         rospy.Subscriber("/rl/action", String, self._action_cb)
         # 订阅：GOPS 发来的 reset 请求
@@ -38,10 +49,20 @@ class GazeboBridge:
     def _action_cb(self, msg):
         """收到 action，执行一步，把结果发回去"""
         try:
-            action = np.array(json.loads(msg.data), dtype=np.float32)
-            obs, reward, done, info = self.env.step(action)
+            data = json.loads(msg.data)
+            if isinstance(data, dict):
+                env_id = data.get("env_id", "sampler")
+                action_data = data.get("action", [])
+            else:
+                env_id = "sampler"
+                action_data = data
+
+            action = np.array(action_data, dtype=np.float32)
+            with self._env_lock:
+                obs, reward, done, info = self.env.step(action)
 
             result = json.dumps({
+                "env_id": env_id,
                 "obs":    obs.tolist(),
                 "reward": float(reward),
                 "done":   bool(done),
@@ -58,11 +79,16 @@ class GazeboBridge:
         """收到 reset 请求，重置环境，把初始 obs 发回去"""
         try:
             data = json.loads(msg.data) if msg.data else {}
+            env_id = data.get("env_id", "sampler")
             n_obstacles = data.get("n_obstacles", self.n_obstacles)
 
-            obs = self.env.reset(n_obstacles=n_obstacles)
+            with self._env_lock:
+                obs = self.env.reset(n_obstacles=n_obstacles)
 
-            result = json.dumps({"obs": obs.tolist()})
+            result = json.dumps({
+                "env_id": env_id,
+                "obs": obs.tolist(),
+            })
             self.pub_reset_result.publish(result)
 
         except Exception as e:

@@ -14,7 +14,7 @@ import sys
 import traceback
 import numpy as np
 
-sys.path.append('/home/lin/GOPS/gops/env/env_gazebo')
+sys.path.append('/home/lin/combined-repo/GOPS/gops/env/env_gazebo')
 from pyth_gazebo_parking import PythGazeboParking
 
 
@@ -39,13 +39,13 @@ def test_spaces(env):
     print("="*50)
 
     print(f"观测空间: {env.observation_space}")
-    print(f"  shape : {env.observation_space.shape}")   # 期望 (41,)
+    print(f"  shape : {env.observation_space.shape}")   # 期望 (43,)
     print(f"动作空间: {env.action_space}")
     print(f"  low   : {env.action_space.low}")
     print(f"  high  : {env.action_space.high}")
     print(f"  shape : {env.action_space.shape}")        # 期望 (2,)
 
-    assert env.observation_space.shape == (41,), "观测空间维度错误，期望 (41,)"
+    assert env.observation_space.shape == (43,), "观测空间维度错误，期望 (43,)"
     assert env.action_space.shape == (2,),       "动作空间维度错误，期望 (2,)"
     print("✓ 空间定义正确")
 
@@ -59,13 +59,13 @@ def test_reset(env):
     print("发送 reset 请求...")
     obs = env.reset()
 
-    print(f"obs shape : {obs.shape}")    # 期望 (41,)
+    print(f"obs shape : {obs.shape}")    # 期望 (43,)
     print(f"obs dtype : {obs.dtype}")    # 期望 float32
     print(f"obs 前5维 : {obs[:5]}")
     print(f"obs 是否含 NaN : {np.any(np.isnan(obs))}")
     print(f"obs 是否含 Inf : {np.any(np.isinf(obs))}")
 
-    assert obs.shape == (41,),      "obs 维度错误"
+    assert obs.shape == (43,),      "obs 维度错误"
     assert obs.dtype == np.float32, "obs 类型错误"
     assert not np.any(np.isnan(obs)), "obs 含有 NaN"
     assert not np.any(np.isinf(obs)), "obs 含有 Inf"
@@ -90,7 +90,7 @@ def test_step_zero_action(env):
     print(f"info       : {info}")
     print(f"obs 是否含 NaN : {np.any(np.isnan(obs))}")
 
-    assert obs.shape == (41,), "obs 维度错误"
+    assert obs.shape == (43,), "obs 维度错误"
     assert isinstance(reward, float), "reward 类型错误"
     assert isinstance(done, bool),    "done 类型错误"
     assert isinstance(info, dict),    "info 类型错误"
@@ -141,7 +141,7 @@ def test_done_and_reset(env):
     print("执行 reset...")
     obs = env.reset()
     print(f"reset 后 obs shape: {obs.shape}")
-    assert obs.shape == (41,), "reset 后 obs 维度错误"
+    assert obs.shape == (43,), "reset 后 obs 维度错误"
     print("✓ done 后 reset 正常")
 
 

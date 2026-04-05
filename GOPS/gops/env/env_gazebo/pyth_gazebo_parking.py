@@ -14,13 +14,14 @@ class PythGazeboParking(gym.Env):
     max_episode_steps = 240
 
     # 如果之后要改，这里也要同步修改
-    OBS_DIM = 41
+    OBS_DIM = 43
     ACT_LOW  = np.array([-0.01,  -0.03], dtype=np.float32)
     ACT_HIGH = np.array([0.01,   0.03], dtype=np.float32)
 
     def __init__(
         self,
         n_obstacles: int = 3,
+        bridge_env_id: str = "sampler",
         rosbridge_host: str = "localhost",
         rosbridge_port: int = 9090,
         timeout: float = 30.0,
@@ -29,6 +30,7 @@ class PythGazeboParking(gym.Env):
         super().__init__()
 
         self.n_obstacles = n_obstacles
+        self.bridge_env_id = bridge_env_id
         self.timeout = timeout
 
         self.observation_space = gym.spaces.Box(
@@ -62,29 +64,40 @@ class PythGazeboParking(gym.Env):
         self._step_event   = threading.Event()
         self._reset_event  = threading.Event()
 
-        sub_result = roslibpy.Topic(
+        self._sub_result = roslibpy.Topic(
             self._client, "/rl/result", "std_msgs/String"
         )
-        sub_result.subscribe(self._step_cb)
+        self._sub_result.subscribe(self._step_cb)
 
-        sub_reset = roslibpy.Topic(
+        self._sub_reset = roslibpy.Topic(
             self._client, "/rl/reset_result", "std_msgs/String"
         )
-        sub_reset.subscribe(self._reset_cb)
+        self._sub_reset.subscribe(self._reset_cb)
 
     # 回调
     def _step_cb(self, msg):
-        self._step_result = json.loads(msg["data"])
+        data = json.loads(msg["data"])
+        msg_env_id = data.get("env_id", "sampler")
+        if msg_env_id != self.bridge_env_id:
+            return
+        self._step_result = data
         self._step_event.set()
 
     def _reset_cb(self, msg):
-        self._reset_result = json.loads(msg["data"])
+        data = json.loads(msg["data"])
+        msg_env_id = data.get("env_id", "sampler")
+        if msg_env_id != self.bridge_env_id:
+            return
+        self._reset_result = data
         self._reset_event.set()
 
     # gym 接口
     def reset(self, **kwargs):
         self._reset_event.clear()
-        payload = json.dumps({"n_obstacles": self.n_obstacles})
+        payload = json.dumps({
+            "env_id": self.bridge_env_id,
+            "n_obstacles": self.n_obstacles,
+        })
         self._pub_reset.publish(roslibpy.Message({"data": payload}))
 
         if not self._reset_event.wait(timeout=self.timeout):
@@ -98,7 +111,10 @@ class PythGazeboParking(gym.Env):
         action = np.clip(action, self.ACT_LOW, self.ACT_HIGH)
 
         self._step_event.clear()
-        payload = json.dumps(action.tolist())
+        payload = json.dumps({
+            "env_id": self.bridge_env_id,
+            "action": action.tolist(),
+        })
         self._pub_action.publish(roslibpy.Message({"data": payload}))
 
         if not self._step_event.wait(timeout=self.timeout):
@@ -114,18 +130,21 @@ class PythGazeboParking(gym.Env):
         return obs, reward, done, info
 
     def close(self):
-        self._client.terminate()
+        if hasattr(self, "_sub_result"):
+            self._sub_result.unsubscribe()
+        if hasattr(self, "_sub_reset"):
+            self._sub_reset.unsubscribe()
+        # roslibpy uses Twisted's global reactor; terminating it here makes
+        # subsequent Ros.run() calls in the same process fail with
+        # ReactorNotRestartable. For transient env instances (e.g., init_args),
+        # just close websocket if available and keep reactor alive.
+        if hasattr(self._client, "close"):
+            self._client.close()
 
     def seed(self, seed=None):
         return []
 
 
 
-
-_instance = None
-
 def env_creator(**kwargs):
-    global _instance
-    if _instance is None:
-        _instance = PythGazeboParking(**kwargs)
-    return _instance
+    return PythGazeboParking(**kwargs)

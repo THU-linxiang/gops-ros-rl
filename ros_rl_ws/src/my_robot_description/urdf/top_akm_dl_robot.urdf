@@ -231,6 +231,7 @@
             <maxVelocity>0.3</maxVelocity>
             <commandTopic>cmd_vel</commandTopic>
             <odometryTopic>odom</odometryTopic>
+            <odometrySource>world</odometrySource>
             <odometryFrame>odom</odometryFrame>
             <robotBaseFrame>base_link</robotBaseFrame>
             <publishOdomTF>true</publishOdomTF>

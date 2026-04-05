@@ -238,10 +238,10 @@ if __name__ == '__main__':
     rospy.init_node('env_generator_test')
     gen = EnvGenerator()
 
-    # for i in range(1, 2):
-    #     rospy.loginfo(f"=== 测试第{i}次reset ===")
-    #     goal = gen.reset_env(n_obstacles = 5)
-    #     rospy.loginfo(f"目标位置: {goal}")
-    #     rospy.sleep(4.0)
+    for i in range(1, 2):
+        rospy.loginfo(f"=== 测试第{i}次reset ===")
+        goal = gen.reset_env(n_obstacles = 5)
+        rospy.loginfo(f"目标位置: {goal}")
+        rospy.sleep(4.0)
 
-    # rospy.loginfo("=== 测试完成 ===")
+    rospy.loginfo("=== 测试完成 ===")

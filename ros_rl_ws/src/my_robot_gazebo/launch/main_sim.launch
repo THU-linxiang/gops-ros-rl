@@ -14,7 +14,7 @@
   <node name="spawn_urdf"
         pkg="gazebo_ros"
         type="spawn_model"
-        args="-param robot_description -urdf -model my_robot -z 0.3"
+        args="-param robot_description -urdf -model my_robot -z 0.0"
         output="screen"/>
 
   <!-- 发布TF坐标变换 -->

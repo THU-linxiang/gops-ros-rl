@@ -5,10 +5,19 @@ roslaunch my_env_generator env_generator.launch
 roslaunch rosbridge_server rosbridge_websocket.launch
 
 3、启动环境桥接文件（系统python）
-cd /home/lin/ros_rl_ws/src/gops_ros_wrapper/scripts
+cd /home/lin/combined-repo/ros_rl_ws/src/gops_ros_wrapper/scripts
 python3 gazebo_bridge.py
 
 4、启动GOPS 训练（conda）
 conda activate gops
-cd ~/GOPS
-python train_gazebo_parking.py
+cd /home/lin/combined-repo/GOPS/example_train/fpisac
+python3 fpisac_mlp_veh2dof_tracking_error_serial.py
+
+
+python3 validate_dual_env_bridge.py \
+  --host localhost \
+  --port 9090 \
+  --sampler_bridge_env_id sampler \
+  --evaluator_bridge_env_id evaluator \
+  --rounds 20 \
+  --timeout 8

@@ -44,7 +44,17 @@ class BaseSampler(metaclass=ABCMeta):
         noise_params=None,
         **kwargs
     ):
-        self.env = create_env(**kwargs)
+        env_kwargs = kwargs.copy()
+        sampler_env_id = env_kwargs.get("sampler_env_id")
+        if sampler_env_id is not None:
+            env_kwargs["env_id"] = sampler_env_id
+        sampler_bridge_env_id = env_kwargs.get("sampler_bridge_env_id")
+        if sampler_bridge_env_id is not None:
+            env_kwargs["bridge_env_id"] = sampler_bridge_env_id
+        else:
+            env_kwargs.setdefault("bridge_env_id", "sampler")
+
+        self.env = create_env(**env_kwargs)
         _, self.env = set_seed(kwargs["trainer"], kwargs["seed"], index + 200, self.env)  #? seed here?
         self.networks = create_approx_contrainer(**kwargs)
         self.noise_params = noise_params

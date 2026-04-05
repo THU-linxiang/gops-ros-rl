@@ -49,6 +49,7 @@ class OffSerialTrainer:
         self.log_save_interval = kwargs["log_save_interval"]
         self.apprfunc_save_interval = kwargs["apprfunc_save_interval"]
         self.eval_interval = kwargs["eval_interval"]
+        self.blocking_eval = kwargs.get("blocking_eval", False)
         self.best_tar = -inf
         self.save_folder = kwargs["save_folder"]
         self.iteration = 0
@@ -67,7 +68,7 @@ class OffSerialTrainer:
         self.sampler_tb_dict = LogData()
 
         # create evaluation tasks
-        self.evluate_tasks = TaskPool()
+        self.evluate_tasks = TaskPool() if not self.blocking_eval else None
         self.last_eval_iteration = 0
 
         self.use_gpu = kwargs["use_gpu"]
@@ -113,55 +114,19 @@ class OffSerialTrainer:
 
         # evaluate
         if self.iteration - self.last_eval_iteration >= self.eval_interval:
-            if self.evluate_tasks.count == 0:
-                # There is no evaluation task, add one.
-                self._add_eval_task()
-            elif self.evluate_tasks.completed_num == 1:
-                # Evaluation tasks is completed, log data and add another one.
-                objID = next(self.evluate_tasks.completed())[1]
-                total_avg_return = ray.get(objID)
-                self._add_eval_task()
-
-                if (
-                    total_avg_return >= self.best_tar
-                    and self.iteration >= self.max_iteration / 5
-                ):
-                    self.best_tar = total_avg_return
-                    print("Best return = {}!".format(str(self.best_tar)))
-
-                    for filename in os.listdir(self.save_folder + "/apprfunc/"):
-                        if filename.endswith("_opt.pkl"):
-                            os.remove(self.save_folder + "/apprfunc/" + filename)
-
-                    torch.save(
-                        self.networks.state_dict(),
-                        self.save_folder
-                        + "/apprfunc/apprfunc_{}_opt.pkl".format(self.iteration),
-                    )
-
-                self.writer.add_scalar(
-                    tb_tags["Buffer RAM of RL iteration"],
-                    self.buffer.__get_RAM__(),
-                    self.iteration,
-                )
-                self.writer.add_scalar(
-                    tb_tags["TAR of RL iteration"], total_avg_return, self.iteration
-                )
-                self.writer.add_scalar(
-                    tb_tags["TAR of replay samples"],
-                    total_avg_return,
-                    self.iteration * self.replay_batch_size,
-                )
-                self.writer.add_scalar(
-                    tb_tags["TAR of total time"],
-                    total_avg_return,
-                    int(time.time() - self.start_time),
-                )
-                self.writer.add_scalar(
-                    tb_tags["TAR of collected samples"],
-                    total_avg_return,
-                    self.sampler.get_total_sample_number(),
-                )
+            if self.blocking_eval:
+                total_avg_return = self._run_eval_blocking()
+                self._log_eval_result(total_avg_return)
+            else:
+                if self.evluate_tasks.count == 0:
+                    # There is no evaluation task, add one.
+                    self._add_eval_task()
+                elif self.evluate_tasks.completed_num == 1:
+                    # Evaluation tasks is completed, log data and add another one.
+                    objID = next(self.evluate_tasks.completed())[1]
+                    total_avg_return = ray.get(objID)
+                    self._add_eval_task()
+                    self._log_eval_result(total_avg_return)
 
     def train(self):
         while self.iteration < self.max_iteration:
@@ -176,6 +141,55 @@ class OffSerialTrainer:
             self.networks.state_dict(),
             self.save_folder + "/apprfunc/apprfunc_{}.pkl".format(self.iteration),
         )
+
+    def _log_eval_result(self, total_avg_return):
+        if (
+            total_avg_return >= self.best_tar
+            and self.iteration >= self.max_iteration / 5
+        ):
+            self.best_tar = total_avg_return
+            print("Best return = {}!".format(str(self.best_tar)))
+
+            for filename in os.listdir(self.save_folder + "/apprfunc/"):
+                if filename.endswith("_opt.pkl"):
+                    os.remove(self.save_folder + "/apprfunc/" + filename)
+
+            torch.save(
+                self.networks.state_dict(),
+                self.save_folder
+                + "/apprfunc/apprfunc_{}_opt.pkl".format(self.iteration),
+            )
+
+        self.writer.add_scalar(
+            tb_tags["Buffer RAM of RL iteration"],
+            self.buffer.__get_RAM__(),
+            self.iteration,
+        )
+        self.writer.add_scalar(
+            tb_tags["TAR of RL iteration"], total_avg_return, self.iteration
+        )
+        self.writer.add_scalar(
+            tb_tags["TAR of replay samples"],
+            total_avg_return,
+            self.iteration * self.replay_batch_size,
+        )
+        self.writer.add_scalar(
+            tb_tags["TAR of total time"],
+            total_avg_return,
+            int(time.time() - self.start_time),
+        )
+        self.writer.add_scalar(
+            tb_tags["TAR of collected samples"],
+            total_avg_return,
+            self.sampler.get_total_sample_number(),
+        )
+
+    def _run_eval_blocking(self):
+        with ModuleOnDevice(self.networks, "cpu"):
+            self.evaluator.load_state_dict.remote(self.networks.state_dict())
+        obj_id = self.evaluator.run_evaluation.remote(self.iteration)
+        self.last_eval_iteration = self.iteration
+        return ray.get(obj_id)
 
     def _add_eval_task(self):
         with ModuleOnDevice(self.networks, "cpu"):
