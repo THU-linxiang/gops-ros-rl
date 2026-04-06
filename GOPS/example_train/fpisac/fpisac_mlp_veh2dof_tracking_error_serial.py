@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--policy_act_distribution", type=str, default="TanhGaussDistribution")
     parser.add_argument("--policy_hidden_sizes", type=list, default=[64, 64])
     parser.add_argument("--policy_hidden_activation", type=str, default="relu")
-    parser.add_argument("--policy_min_log_std", type=float, default=-20.)
+    parser.add_argument("--policy_min_log_std", type=float, default=-6.)
     parser.add_argument("--policy_max_log_std", type=float, default=2.)
 
     ################################################
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     parser.add_argument("--feasibility_learning_rate", type=float, default=3e-4)
     parser.add_argument("--policy_learning_rate", type=float, default=3e-4)
     parser.add_argument("--alpha_learning_rate", type=float, default=3e-4)
-    parser.add_argument("--penalty", type=float, default=10.)
+    parser.add_argument("--penalty", type=float, default=3.)
 
     ################################################
     # 4. Parameters for trainer
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     parser.add_argument("--buffer_name", type=str, default="replay_buffer")
     parser.add_argument("--buffer_warm_size", type=int, default=1000)
     parser.add_argument("--buffer_max_size", type=int, default=100000)
-    parser.add_argument("--replay_batch_size", type=int, default=256)
+    parser.add_argument("--replay_batch_size", type=int, default=128)
 
     ################################################
     # 5. Parameters for sampler
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     # 7. Data savings
     parser.add_argument("--save_folder", type=str, default=None)
     parser.add_argument("--apprfunc_save_interval", type=int, default=20000)
-    parser.add_argument("--log_save_interval", type=int, default=1000)
+    parser.add_argument("--log_save_interval", type=int, default=500)
 
     ################################################
     # Get parameter dictionary

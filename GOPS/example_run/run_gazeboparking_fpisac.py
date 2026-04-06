@@ -1,7 +1,7 @@
 from gops.sys_simulator.sys_run import PolicyRunner
 
 runner = PolicyRunner(
-    log_policy_dir_list=["/home/lin/GOPS/results/pyth_gazebo_parking/FPISAC_260330-234141"] ,  # directory of trained policy
+    log_policy_dir_list=["/home/lin/combined-repo/GOPS/results/pyth_gazebo_parking/FPISAC_260405-151151"] ,  # directory of trained policy
     trained_policy_iteration_list=["100000"],  # iteration number of trained policy
     is_init_info=False,  # customize initial information
     #init_info={"init_state":[0.5, 3.9, 0.2,0,0,   0.5,1.8,  -0.2,2.7,  1.4,3.1,  0,0.5,1.57]},  # initial state

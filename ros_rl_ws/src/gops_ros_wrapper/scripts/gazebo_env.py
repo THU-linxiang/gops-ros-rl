@@ -249,7 +249,13 @@ class GazeboEnv(gym.Env):
         else:
             r_direction = 0.0
 
-        return r_potential + r_heading + r_step + r_smooth + r_safety + r_direction
+        # 远离目标时，抑制长时间原地/低速停滞
+        if distance > 0.8 and abs(self.current_v) < 0.02:
+            r_stall = -0.08
+        else:
+            r_stall = 0.0
+
+        return r_potential + r_heading + r_step + r_smooth + r_safety + r_direction + r_stall
 
 
     #  结束条件
