@@ -142,7 +142,18 @@ class OffSerialTrainer:
             self.save_folder + "/apprfunc/apprfunc_{}.pkl".format(self.iteration),
         )
 
-    def _log_eval_result(self, total_avg_return):
+    @staticmethod
+    def _parse_eval_result(eval_result):
+        if isinstance(eval_result, dict):
+            total_avg_return = float(eval_result.get("total_avg_return", 0.0))
+            reward_terms = eval_result.get("reward_terms", {})
+            if not isinstance(reward_terms, dict):
+                reward_terms = {}
+            return total_avg_return, reward_terms
+        return float(eval_result), {}
+
+    def _log_eval_result(self, eval_result):
+        total_avg_return, reward_terms = self._parse_eval_result(eval_result)
         if (
             total_avg_return >= self.best_tar
             and self.iteration >= self.max_iteration / 5
@@ -183,6 +194,13 @@ class OffSerialTrainer:
             total_avg_return,
             self.sampler.get_total_sample_number(),
         )
+
+        for term_name, term_value in reward_terms.items():
+            self.writer.add_scalar(
+                f"EvaluationRewardTerms/{term_name}",
+                float(term_value),
+                self.iteration,
+            )
 
     def _run_eval_blocking(self):
         with ModuleOnDevice(self.networks, "cpu"):

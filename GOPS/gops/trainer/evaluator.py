@@ -61,6 +61,8 @@ class Evaluator:
         obs_list = []
         action_list = []
         reward_list = []
+        reward_term_sums = {}
+        reward_term_counts = {}
         obs, info = self.env.reset()
         done = 0
         info["TimeLimit.truncated"] = False
@@ -76,6 +78,12 @@ class Evaluator:
             action_list.append(action)
             obs = next_obs
             info = next_info
+            reward_terms = info.get("reward_terms", {})
+            if isinstance(reward_terms, dict):
+                for k, v in reward_terms.items():
+                    if np.isscalar(v):
+                        reward_term_sums[k] = reward_term_sums.get(k, 0.0) + float(v)
+                        reward_term_counts[k] = reward_term_counts.get(k, 0) + 1
             if "TimeLimit.truncated" not in info.keys():
                 info["TimeLimit.truncated"] = False
             # Draw environment animation
@@ -94,13 +102,33 @@ class Evaluator:
                 eval_dict,
             )
         episode_return = sum(reward_list)
-        return episode_return
+        episode_reward_terms = {
+            k: reward_term_sums[k] / max(1, reward_term_counts[k])
+            for k in reward_term_sums.keys()
+        }
+        return episode_return, episode_reward_terms
 
     def run_n_episodes(self, n, iteration):
         episode_return_list = []
+        reward_terms_list = []
         for _ in range(n):
-            episode_return_list.append(self.run_an_episode(iteration, self.render))
-        return np.mean(episode_return_list)
+            episode_return, episode_reward_terms = self.run_an_episode(iteration, self.render)
+            episode_return_list.append(episode_return)
+            reward_terms_list.append(episode_reward_terms)
+
+        merged_reward_terms = {}
+        all_term_names = set()
+        for terms in reward_terms_list:
+            all_term_names.update(terms.keys())
+        for term_name in all_term_names:
+            values = [terms[term_name] for terms in reward_terms_list if term_name in terms]
+            if values:
+                merged_reward_terms[term_name] = float(np.mean(values))
+
+        return {
+            "total_avg_return": float(np.mean(episode_return_list)),
+            "reward_terms": merged_reward_terms,
+        }
 
     def run_evaluation(self, iteration):
         return self.run_n_episodes(self.num_eval_episode, iteration)

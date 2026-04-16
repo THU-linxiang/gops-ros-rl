@@ -11,7 +11,7 @@ class PythGazeboParking(gym.Env):
 
     metadata = {}
 
-    max_episode_steps = 50000
+    max_episode_steps = 500
 
     # 如果之后要改，这里也要同步修改
     OBS_DIM = 43

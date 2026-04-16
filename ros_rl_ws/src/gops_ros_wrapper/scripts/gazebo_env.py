@@ -65,7 +65,7 @@ class GazeboEnv(gym.Env):
     LIDAR_MAX_RANGE = 10.0
 
     # 最大步数
-    MAX_STEPS = 50000
+    MAX_STEPS = 500
 
     def __init__(self):
         super().__init__()
@@ -104,6 +104,7 @@ class GazeboEnv(gym.Env):
         self._pre_rect_hold_steps = 0
         self._pre_rect_hold_threshold = 6
         self.prev_action = np.zeros(2, dtype=np.float32)
+        self._last_reward_terms = {}
         self.steps       = 0
         self.collision = False
 
@@ -138,6 +139,7 @@ class GazeboEnv(gym.Env):
         self.current_v  = 0.0
         self.current_w  = 0.0
         self.prev_action = np.zeros(2, dtype=np.float32)
+        self._last_reward_terms = {}
         self._stage2_unlocked = False
         self._pre_rect_hold_steps = 0
 
@@ -201,6 +203,7 @@ class GazeboEnv(gym.Env):
 
         obs    = self._get_obs()
         reward = self._compute_reward(action)
+        reward_terms = dict(self._last_reward_terms)
         self.prev_action[0] = delta_v
         self.prev_action[1] = delta_w
         done   = False
@@ -220,6 +223,8 @@ class GazeboEnv(gym.Env):
         if self.steps >= self.MAX_STEPS:
             info["TimeLimit.truncated"] = True
             done = False
+
+        info["reward_terms"] = reward_terms
 
         return obs, reward, done, info
 
@@ -244,19 +249,26 @@ class GazeboEnv(gym.Env):
         # 雷达安全惩罚
         min_lidar_m = float(np.min(self._lidar_norm)) * self.LIDAR_MAX_RANGE
         safety_thresh = 0.5
-        r_safety = min(0.0, (min_lidar_m - safety_thresh) * 2.0) # [-1, 0]
+        r_safety = min(0.0, (min_lidar_m - safety_thresh) * 10.0) # [-1, 0]
 
         # 换向惩罚
-        v_prev = self.current_v - delta_v
-        if (v_prev > 0 > self.current_v) or (v_prev < 0 < self.current_v):
-            r_direction = -0.3
-        else:
-            r_direction = 0.0
+        # v_prev = self.current_v - delta_v
+        # if (v_prev > 0 > self.current_v) or (v_prev < 0 < self.current_v):
+        #     r_direction = -0.3
+        # else:
+        #     r_direction = 0.0
 
         # 分阶段
         pre_x, pre_y = 0.0, -1.0
         pre_dist = np.hypot(x - pre_x, y - pre_y)
         center_dist = np.hypot(x - self.goal_x, y - self.goal_y)
+
+        r_stage_potential = 0.0
+        r_stage_speed = 0.0
+        r_stage_pos = 0.0
+        r_stage_align = 0.0
+        r_stage_slow = 0.0
+        r_stage_step_bonus = 0.0
 
         in_garage_1x1 = (abs(x - self.goal_x) <= 0.5 and abs(y - self.goal_y) < 0.5)
         in_pre_rect = (abs(x - pre_x) <= 1.0 and abs(y - pre_y) <= 0.5)
@@ -276,37 +288,55 @@ class GazeboEnv(gym.Env):
 
         # 阶段1：未解锁前都按阶段1奖励，避免直接进入库区绕过流程
         if not self._stage2_unlocked:
-            r_stage_potential = (self._prev_stage1_dist - pre_dist) * 15.0 # [-0.45, 0.45]
-            r_speed = -0.2 * np.clip((self.V_MAX - v_abs) / self.V_MAX, 0.0, 1.0) # [-0.2, 0]
+            r_stage_potential = (self._prev_stage1_dist - pre_dist) * 50 # [-1.5, 1.5]
+            r_stage_speed = -1 * np.clip((self.V_MAX - v_abs) / self.V_MAX, 0.0, 1.0) # [-1, 0]
             if pre_dist >= 1.0:
-                r_pos = max(-7.0 * np.sqrt(pre_dist), -15)
+                r_stage_pos = max(-1.5 * np.sqrt(pre_dist), -4.0) # [-4, -0.75]
             else:
-                r_pos = -7.0 * pre_dist
-            r_stage = r_stage_potential + r_speed + r_pos
+                r_stage_pos = -1.5 * pre_dist
 
         # 阶段2-1：已解锁且在 2x1 内（未入 1x1）
         elif in_pre_rect and (not in_garage_1x1):
-            r_stage_potential = (self._prev_stage2_dist - center_dist) * 25.0 # [-0.75, 0.75]
-            r_pos = -4.0 * center_dist
-            r_stage = r_stage_potential + r_pos 
+            r_stage_potential = (self._prev_stage2_dist - center_dist) * 150 # [-4.5, 4.5]
+            r_stage_pos = -0.7 * center_dist # [-1.05, -0.35]
+            r_stage_step_bonus = 0.5
+
         # 阶段2-2：进入 1x1 后逐步增强姿态与低速要求
         elif in_garage_1x1:
-            r_stage_potential = (self._prev_stage2_dist - center_dist) * 25.0
+            r_stage_potential = (self._prev_stage2_dist - center_dist) * 150 # [-4.5, 4.5]
             fine_gate = np.clip((0.7 - center_dist) / 0.7, 0.0, 1.0)
-            r_align = -0.3 * heading_err * fine_gate
-            r_slow = -0.5 * (v_abs + 0.5 * w_abs) * fine_gate
-            r_pos = -2.0 * center_dist
-            hold_ok = (center_dist < 0.12 and heading_err < 0.12 and
-                       v_abs < 0.03 and w_abs < 0.03)
-            r_hold = 0.2 if hold_ok else 0.0
-            r_stage_step_bonus = 1.0
-            r_stage = r_stage_potential + r_align + r_slow + r_pos + r_hold + r_stage_step_bonus
+            r_stage_align = -1.0 * heading_err * fine_gate # max[-1.57, 0]
+            r_stage_slow = -5 * (v_abs + 0.5 * w_abs) * fine_gate # max[-0.65, 0]
+            r_stage_pos = -0.7 * center_dist # [-0.35, 0]
+            r_stage_step_bonus = 3.0
+
+        r_stage = (
+            r_stage_potential
+            + r_stage_speed
+            + r_stage_pos
+            + r_stage_align
+            + r_stage_slow
+            + r_stage_step_bonus
+        )
 
         # 更新势能
         self._prev_stage1_dist = pre_dist
         self._prev_stage2_dist = center_dist
 
-        return r_step + r_smooth + r_safety + r_direction + r_stage
+        self._last_reward_terms = {
+            "r_step": float(r_step),
+            "r_smooth": float(r_smooth),
+            "r_safety": float(r_safety),
+            "r_stage": float(r_stage),
+            "r_stage_potential": float(r_stage_potential),
+            "r_stage_speed": float(r_stage_speed),
+            "r_stage_pos": float(r_stage_pos),
+            "r_stage_align": float(r_stage_align),
+            "r_stage_slow": float(r_stage_slow),
+            "r_stage_step_bonus": float(r_stage_step_bonus),
+        }
+
+        return r_step + r_smooth + r_safety + r_stage
 
 
     #  结束条件
