@@ -174,6 +174,20 @@ class BaseSampler(metaclass=ABCMeta):
         else:
             next_obs, reward, done, next_info = self.env.step(action_clip)
 
+            # If bridge reset sequence changes unexpectedly, the transition may
+            # cross an evaluator-triggered reset in shared Gazebo instance.
+            # Drop this transition to avoid replay pollution.
+            if (
+                isinstance(self.info, dict)
+                and isinstance(next_info, dict)
+                and "_bridge_reset_seq" in self.info
+                and "_bridge_reset_seq" in next_info
+                and int(next_info["_bridge_reset_seq"]) != int(self.info["_bridge_reset_seq"])
+            ):
+                self.obs = next_obs
+                self.info = next_info
+                return []
+
             # TODO: deprecate this after changing to gymnasium
             if "TimeLimit.truncated" not in next_info.keys():
                 next_info["TimeLimit.truncated"] = False

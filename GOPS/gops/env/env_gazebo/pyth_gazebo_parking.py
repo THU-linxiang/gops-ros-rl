@@ -11,7 +11,7 @@ class PythGazeboParking(gym.Env):
 
     metadata = {}
 
-    max_episode_steps = 240
+    max_episode_steps = 50000
 
     # 如果之后要改，这里也要同步修改
     OBS_DIM = 43
@@ -20,7 +20,7 @@ class PythGazeboParking(gym.Env):
 
     def __init__(
         self,
-        n_obstacles: int = 3,
+        n_obstacles: int = 0,
         bridge_env_id: str = "sampler",
         rosbridge_host: str = "localhost",
         rosbridge_port: int = 9090,
@@ -104,7 +104,10 @@ class PythGazeboParking(gym.Env):
             raise TimeoutError("[Wrapper] reset 超时，检查 gazebo_bridge 是否在运行")
 
         obs = np.array(self._reset_result["obs"], dtype=np.float32)
-        info = {"constraint" : np.array([0.0])}
+        info = {
+            "constraint": np.array([0.0]),
+            "_bridge_reset_seq": int(self._reset_result.get("reset_seq", 0)),
+        }
         return obs, info
 
     def step(self, action):
@@ -127,6 +130,8 @@ class PythGazeboParking(gym.Env):
         info = r.get("info", {})
         if "constraint" in info:
             info["constraint"] = np.array(info["constraint"], dtype=np.float32)
+        if "_bridge_reset_seq" in info:
+            info["_bridge_reset_seq"] = int(info["_bridge_reset_seq"])
         return obs, reward, done, info
 
     def close(self):

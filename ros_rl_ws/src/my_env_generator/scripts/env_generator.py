@@ -127,19 +127,34 @@ class EnvGenerator:
         self.delete_srv = rospy.ServiceProxy('/gazebo/delete_model',    DeleteModel)
         self.set_state  = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
 
+        self.reset_count = 0
+        self.curriculum_total_resets = int(
+            rospy.get_param('~curriculum_total_resets', 20000)
+        )
+
         self.obstacle_names = []
         rospy.loginfo("EnvGenerator 初始化完成")
 
     def reset_env(self, n_obstacles=5):
-    # 每次 reset 时重新采样起始位置
-        self.ROBOT_START_X = np.random.uniform(
-            self.FIELD_X_MIN + 0.7, self.FIELD_X_MAX - 0.7
+        # 每次 reset 时重新采样起始位置
+        progress = min(
+            1.0,
+            self.reset_count / max(1.0, float(self.curriculum_total_resets))
         )
-        if self.GARAGE_X - 1.0 <= self.ROBOT_START_X <= self.GARAGE_X + 1.0:
+        pre_rect_prob = 0.5 * (1.0 - progress)
+
+        if np.random.rand() < pre_rect_prob:
+            # 课程学习：前期高概率初始化到 2x1 预备区，后期逐步退火。
+            self.ROBOT_START_X = np.random.uniform(
+                self.GARAGE_X - 1.0, self.GARAGE_X + 1.0
+            )
             self.ROBOT_START_Y = np.random.uniform(
-                self.GARAGE_Y + 1.0, self.FIELD_Y_MAX - 0.7
+                self.GARAGE_Y + 0.5, self.GARAGE_Y + 1.5
             )
         else:
+            self.ROBOT_START_X = np.random.uniform(
+                self.FIELD_X_MIN + 0.7, self.FIELD_X_MAX - 0.7
+            )
             self.ROBOT_START_Y = np.random.uniform(
                 self.FIELD_Y_MIN + 0.7, self.FIELD_Y_MAX - 0.7
             )
@@ -149,6 +164,7 @@ class EnvGenerator:
         self._clear_obstacles()
         self._spawn_obstacles(n_obstacles)  
         self._reset_robot()
+        self.reset_count += 1
         return self.GARAGE_X, self.GARAGE_Y
 
 

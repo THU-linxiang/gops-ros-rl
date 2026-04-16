@@ -69,6 +69,7 @@ class Evaluator:
             logits = self.networks.policy(batch_obs)
             action_distribution = self.networks.create_action_distributions(logits)
             action = action_distribution.mode()
+            # 取众数，不随机探索
             action = action.detach().numpy()[0]
             next_obs, reward, done, next_info = self.env.step(action)
             obs_list.append(obs)

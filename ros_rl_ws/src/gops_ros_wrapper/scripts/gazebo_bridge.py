@@ -28,6 +28,9 @@ class GazeboBridge:
 
         self.env = GazeboEnv()
         self.n_obstacles = rospy.get_param("~n_obstacles", 3)
+        # Monotonic sequence for every environment reset.
+        # Sampler can use this to detect transitions crossing evaluator resets.
+        self._reset_seq = 0
 
         # 发布：每个step之后的 obs/reward/done/info 
         self.pub_result = rospy.Publisher("/rl/result", String, queue_size=1)
@@ -61,6 +64,9 @@ class GazeboBridge:
             with self._env_lock:
                 obs, reward, done, info = self.env.step(action)
 
+            info_with_seq = dict(info)
+            info_with_seq["_bridge_reset_seq"] = int(self._reset_seq)
+
             result = json.dumps({
                 "env_id": env_id,
                 "obs":    obs.tolist(),
@@ -68,7 +74,7 @@ class GazeboBridge:
                 "done":   bool(done),
                 "info":   {k: v.tolist() if isinstance(v, np.ndarray) else
                             (bool(v) if isinstance(v, (bool, np.bool_)) else v)
-                        for k, v in info.items()}
+                    for k, v in info_with_seq.items()}
             })
             self.pub_result.publish(result)
 
@@ -84,10 +90,12 @@ class GazeboBridge:
 
             with self._env_lock:
                 obs = self.env.reset(n_obstacles=n_obstacles)
+                self._reset_seq += 1
 
             result = json.dumps({
                 "env_id": env_id,
                 "obs": obs.tolist(),
+                "reset_seq": int(self._reset_seq),
             })
             self.pub_reset_result.publish(result)
 

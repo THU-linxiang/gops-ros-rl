@@ -57,22 +57,20 @@ class GazeboEnv(gym.Env):
     R_MIN = 1.2
     V_MAX       = 0.3 # 实车最大速度约为3.5
     W_MAX       = V_MAX / R_MIN
-    V_DELTA_MAX = 0.1
-    W_DELTA_MAX = 0.3
+    V_DELTA_MAX = 0.3
+    W_DELTA_MAX = 0.2
 
     # 雷达参数
     N_LIDAR_BEAMS   = 36
     LIDAR_MAX_RANGE = 10.0
 
     # 最大步数
-    MAX_STEPS = 240
-
-
+    MAX_STEPS = 50000
 
     def __init__(self):
         super().__init__()
 
-        # 初始化 ROS 节点（如果还没有）
+        # 初始化 ROS 节点
         if not rospy.get_node_uri():
             rospy.init_node('gazebo_env', anonymous=True)
 
@@ -98,9 +96,14 @@ class GazeboEnv(gym.Env):
         self.current_w   = 0.0
         self.oddset      = 0.15 # 里程计与车辆中心位置的偏移，实际为0.255，但是太过困难，适当放宽一些
         self.goal_x      = 0.0
-        self.goal_y      = -2.0 - self.oddset
+        self.goal_y      = -2.0
         self.goal_theta  = np.pi / 2
-        self._prev_dist  = 0.0
+        self._prev_stage1_dist = 0.0
+        self._prev_stage2_dist = 0.0
+        self._stage2_unlocked = False
+        self._pre_rect_hold_steps = 0
+        self._pre_rect_hold_threshold = 6
+        self.prev_action = np.zeros(2, dtype=np.float32)
         self.steps       = 0
         self.collision = False
 
@@ -134,6 +137,9 @@ class GazeboEnv(gym.Env):
         self.steps      = 0
         self.current_v  = 0.0
         self.current_w  = 0.0
+        self.prev_action = np.zeros(2, dtype=np.float32)
+        self._stage2_unlocked = False
+        self._pre_rect_hold_steps = 0
 
         stop = Twist()
         self.cmd_pub.publish(stop)
@@ -154,9 +160,10 @@ class GazeboEnv(gym.Env):
 
         obs = self._get_obs()
 
-        # 记录初始距离（用于势能奖励）
+        # 初始化两阶段势能参考距离
         x, y, _ = self._get_pose()
-        self._prev_dist = np.hypot(x - self.goal_x, y - self.goal_y)
+        self._prev_stage1_dist = np.hypot(x - 0.0, y - (-1.0))
+        self._prev_stage2_dist = np.hypot(x - self.goal_x, y - self.goal_y)
 
         self.pause() 
 
@@ -194,23 +201,25 @@ class GazeboEnv(gym.Env):
 
         obs    = self._get_obs()
         reward = self._compute_reward(action)
+        self.prev_action[0] = delta_v
+        self.prev_action[1] = delta_w
         done   = False
         info   = {}
         info["constraint"] = np.array([0.0])
 
         # 碰撞惩罚和成功奖励
         if self._check_collision():
-            reward -= 200.0
+            reward -= 5000.0
             done    = True
             info["constraint"] = np.array([1.0])
 
         if self._check_success():
-            reward += 500.0
+            reward += 100.0
             done    = True
 
         if self.steps >= self.MAX_STEPS:
             info["TimeLimit.truncated"] = True
-            done = True
+            done = False
 
         return obs, reward, done, info
 
@@ -219,28 +228,23 @@ class GazeboEnv(gym.Env):
         x, y, theta = self._get_pose()
         delta_v, delta_w = action
 
-        distance = np.hypot(x - self.goal_x, y - self.goal_y)
-
-        # 势能奖励：靠近车库给正奖励
-        r_potential = (self._prev_dist - distance) * 10.0
-        self._prev_dist = distance
-
-        # 朝向奖励：仅在接近车库时生效
-        if distance < 0.7:
-            r_heading = -abs(angle_normalize(theta - self.goal_theta)) * 1.0
-        else:
-            r_heading = 0.0
+        angle_forward = abs(angle_normalize(theta - self.goal_theta))
+        angle_reverse = abs(angle_normalize(theta - (self.goal_theta + np.pi)))
+        heading_err = min(angle_forward, angle_reverse)
+        v_abs = abs(self.current_v)
+        w_abs = abs(self.current_w)
 
         # 步数惩罚
         r_step = -0.05
 
         # 动作平滑惩罚
-        r_smooth = -(delta_v ** 2 + delta_w ** 2) * 2.0
+        r_smooth = -((delta_v - self.prev_action[0]) ** 2 +
+                 (delta_w - self.prev_action[1]) ** 2) * 10.0  # [-0.05, 0]
 
         # 雷达安全惩罚
         min_lidar_m = float(np.min(self._lidar_norm)) * self.LIDAR_MAX_RANGE
         safety_thresh = 0.5
-        r_safety = min(0.0, (min_lidar_m - safety_thresh) * 10.0)
+        r_safety = min(0.0, (min_lidar_m - safety_thresh) * 2.0) # [-1, 0]
 
         # 换向惩罚
         v_prev = self.current_v - delta_v
@@ -249,13 +253,60 @@ class GazeboEnv(gym.Env):
         else:
             r_direction = 0.0
 
-        # 远离目标时，抑制长时间原地/低速停滞
-        if distance > 0.8 and abs(self.current_v) < 0.02:
-            r_stall = -0.08
-        else:
-            r_stall = 0.0
+        # 分阶段
+        pre_x, pre_y = 0.0, -1.0
+        pre_dist = np.hypot(x - pre_x, y - pre_y)
+        center_dist = np.hypot(x - self.goal_x, y - self.goal_y)
 
-        return r_potential + r_heading + r_step + r_smooth + r_safety + r_direction + r_stall
+        in_garage_1x1 = (abs(x - self.goal_x) <= 0.5 and abs(y - self.goal_y) < 0.5)
+        in_pre_rect = (abs(x - pre_x) <= 1.0 and abs(y - pre_y) <= 0.5)
+
+        # 只有在 2x1 内连续停留，才能解锁阶段2
+        if in_pre_rect:
+            self._pre_rect_hold_steps += 1
+            if self._pre_rect_hold_steps >= self._pre_rect_hold_threshold:
+                self._stage2_unlocked = True
+        elif in_garage_1x1:
+            # 进入 1x1 也会打断 2x1 的连续停留计数
+            self._pre_rect_hold_steps = 0
+        elif not in_garage_1x1:
+            # 一旦离开 1x1（且不在2x1），进度与解锁都重置
+            self._pre_rect_hold_steps = 0
+            self._stage2_unlocked = False
+
+        # 阶段1：未解锁前都按阶段1奖励，避免直接进入库区绕过流程
+        if not self._stage2_unlocked:
+            r_stage_potential = (self._prev_stage1_dist - pre_dist) * 15.0 # [-0.45, 0.45]
+            r_speed = -0.2 * np.clip((self.V_MAX - v_abs) / self.V_MAX, 0.0, 1.0) # [-0.2, 0]
+            if pre_dist >= 1.0:
+                r_pos = max(-7.0 * np.sqrt(pre_dist), -15)
+            else:
+                r_pos = -7.0 * pre_dist
+            r_stage = r_stage_potential + r_speed + r_pos
+
+        # 阶段2-1：已解锁且在 2x1 内（未入 1x1）
+        elif in_pre_rect and (not in_garage_1x1):
+            r_stage_potential = (self._prev_stage2_dist - center_dist) * 25.0 # [-0.75, 0.75]
+            r_pos = -4.0 * center_dist
+            r_stage = r_stage_potential + r_pos 
+        # 阶段2-2：进入 1x1 后逐步增强姿态与低速要求
+        elif in_garage_1x1:
+            r_stage_potential = (self._prev_stage2_dist - center_dist) * 25.0
+            fine_gate = np.clip((0.7 - center_dist) / 0.7, 0.0, 1.0)
+            r_align = -0.3 * heading_err * fine_gate
+            r_slow = -0.5 * (v_abs + 0.5 * w_abs) * fine_gate
+            r_pos = -2.0 * center_dist
+            hold_ok = (center_dist < 0.12 and heading_err < 0.12 and
+                       v_abs < 0.03 and w_abs < 0.03)
+            r_hold = 0.2 if hold_ok else 0.0
+            r_stage_step_bonus = 1.0
+            r_stage = r_stage_potential + r_align + r_slow + r_pos + r_hold + r_stage_step_bonus
+
+        # 更新势能
+        self._prev_stage1_dist = pre_dist
+        self._prev_stage2_dist = center_dist
+
+        return r_step + r_smooth + r_safety + r_direction + r_stage
 
 
     #  结束条件
@@ -264,13 +315,15 @@ class GazeboEnv(gym.Env):
 
     def _check_success(self) -> bool:
         """判断是否成功入库"""
+        if not self._stage2_unlocked:
+            return False
         x, y, theta = self._get_pose()
         dist = np.hypot(x - self.goal_x, y - self.goal_y)
         aerr = abs(angle_normalize(theta - self.goal_theta))
-        angle_ok = aerr < 0.07 or abs(aerr - np.pi) < 0.07
-        return (dist < 0.1 and
-                abs(self.current_v) < 0.02 and
-                abs(self.current_w) < 0.02 and
+        angle_ok = aerr < 0.2 or abs(aerr - np.pi) < 0.2
+        return (dist < 0.15 and
+                abs(self.current_v) < 0.04 and
+                abs(self.current_w) < 0.04 and
                 angle_ok)
 
 
@@ -347,15 +400,13 @@ class GazeboEnv(gym.Env):
             rate.sleep()
 
     def _get_pose(self):
-        """从里程计提取 (x, y, theta)"""
+        """从里程计提取车辆中心 (x, y, theta)"""
         pos = self._odom_data.pose.pose.position
         q   = self._odom_data.pose.pose.orientation
         _, _, theta = tft.euler_from_quaternion([q.x, q.y, q.z, q.w])
-        return pos.x, pos.y, theta
-
-    def _get_xy(self):
-        pos = self._odom_data.pose.pose.position
-        return pos.x, pos.y
+        center_x = pos.x + self.oddset * np.cos(theta)
+        center_y = pos.y + self.oddset * np.sin(theta)
+        return center_x, center_y, theta
 
     def _scan_cb(self, msg):
         self._scan_data = msg
