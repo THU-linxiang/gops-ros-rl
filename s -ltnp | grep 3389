@@ -1,0 +1,20 @@
+[0;1;32m●[0m xrdp.service - xrdp daemon
+     Loaded: loaded (/lib/systemd/system/xrdp.service; enabled; vendor preset: enabled)
+     Active: [0;1;32mactive (running)[0m since Wed 2026-04-08 00:48:09 UTC; 27ms ago
+       Docs: man:xrdp(8)
+             man:xrdp.ini(5)
+    Process: 2446 ExecStartPre=/bin/sh /usr/share/xrdp/socksetup (code=exited, status=0/SUCCESS)
+    Process: 2455 ExecStart=/usr/sbin/xrdp $XRDP_OPTIONS (code=exited, status=0/SUCCESS)
+   Main PID: 2475 (xrdp)
+      Tasks: 1 (limit: 38478)
+     Memory: 1.7M
+     CGroup: /system.slice/xrdp.service
+             └─2475 /usr/sbin/xrdp
+
+Apr 08 00:48:08 gt-ubuntu20-04-cmd-v3-0-32gb-100m systemd[1]: Starting xrdp daemon...
+Apr 08 00:48:08 gt-ubuntu20-04-cmd-v3-0-32gb-100m xrdp[2455]: (2455)(140377652275008)[INFO ] address [0.0.0.0] port [3389] mode 1
+Apr 08 00:48:08 gt-ubuntu20-04-cmd-v3-0-32gb-100m xrdp[2455]: (2455)(140377652275008)[INFO ] listening to port 3389 on 0.0.0.0
+Apr 08 00:48:08 gt-ubuntu20-04-cmd-v3-0-32gb-100m xrdp[2455]: (2455)(140377652275008)[INFO ] xrdp_listen_pp done
+Apr 08 00:48:08 gt-ubuntu20-04-cmd-v3-0-32gb-100m xrdp[2455]: [0;38;5;245m[0;1;31m[0;38;5;245m(2455)(140377652275008)[DEBUG] Closed socket 7 (AF_INET6 :: port 3389)[0m
+Apr 08 00:48:08 gt-ubuntu20-04-cmd-v3-0-32gb-100m systemd[1]: xrdp.service: Can't open PID file /run/xrdp/xrdp.pid (yet?) after start: Operation not permitted
+Apr 08 00:48:09 gt-ubuntu20-04-cmd-v3-0-32gb-100m systemd[1]: Started xrdp daemon.

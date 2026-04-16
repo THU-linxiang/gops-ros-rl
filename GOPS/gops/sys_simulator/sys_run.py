@@ -200,8 +200,6 @@ class PolicyRunner:
                 action = self.__action_noise(action)
             if self.use_dist:
                 action = np.hstack((action, env.dist_func(step * env.tau)))
-            if self.constrained_env:
-                constrain_list.append(info["constraint"])
             if self.is_tracking:
                 reference = get_reference_from_info(info)
                 state_num = len(reference)
@@ -228,6 +226,11 @@ class PolicyRunner:
             step_list.append(step)
             reward_list.append(reward)
             info_list.append(info)
+            if self.constrained_env:
+                # Record constraint from current transition (post-step info),
+                # so terminal collision flags are not dropped.
+                constraint = info.get("constraint", np.array([0.0], dtype=np.float32))
+                constrain_list.append(np.array(constraint, dtype=np.float32))
 
             obs = next_obs
             state = env.state

@@ -79,8 +79,8 @@ if __name__ == "__main__":
     parser.add_argument("--value_learning_rate", type=float, default=3e-4)
     parser.add_argument("--feasibility_learning_rate", type=float, default=3e-4)
     parser.add_argument("--policy_learning_rate", type=float, default=3e-4)
-    parser.add_argument("--alpha_learning_rate", type=float, default=3e-4)
-    parser.add_argument("--penalty", type=float, default=10.)
+    parser.add_argument("--alpha_learning_rate", type=float, default=1e-4)
+    parser.add_argument("--penalty", type=float, default=2.0)
 
     ################################################
     # 4. Parameters for trainer
@@ -103,9 +103,9 @@ if __name__ == "__main__":
 
     # 4.1. Parameters for off_serial_trainer
     parser.add_argument("--buffer_name", type=str, default="replay_buffer")
-    parser.add_argument("--buffer_warm_size", type=int, default=1000)
+    parser.add_argument("--buffer_warm_size", type=int, default=5000)
     parser.add_argument("--buffer_max_size", type=int, default=100000)
-    parser.add_argument("--replay_batch_size", type=int, default=256)
+    parser.add_argument("--replay_batch_size", type=int, default=128)
 
     ################################################
     # 5. Parameters for sampler
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     ################################################
     # 7. Data savings
     parser.add_argument("--save_folder", type=str, default=None)
-    parser.add_argument("--apprfunc_save_interval", type=int, default=20000)
+    parser.add_argument("--apprfunc_save_interval", type=int, default=10000)
     parser.add_argument("--log_save_interval", type=int, default=1000)
 
     ################################################

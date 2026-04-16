@@ -174,7 +174,7 @@ class GazeboEnv(gym.Env):
                                  -self.V_MAX, self.V_MAX)
         self.current_w = np.clip(self.current_w + delta_w,
                                  -self.W_MAX, self.W_MAX)
-        
+
         w_max = abs(self.current_v) / self.R_MIN
         self.current_w = np.clip(self.current_w, -w_max, w_max)
            
@@ -222,7 +222,8 @@ class GazeboEnv(gym.Env):
         distance = np.hypot(x - self.goal_x, y - self.goal_y)
 
         # 势能奖励：靠近车库给正奖励
-        r_potential = (self._prev_dist - distance) * 10.0
+        progress = self._prev_dist - distance
+        r_potential = progress * 10.0
         self._prev_dist = distance
 
         # 朝向奖励：仅在接近车库时生效
@@ -249,8 +250,8 @@ class GazeboEnv(gym.Env):
         else:
             r_direction = 0.0
 
-        return r_potential + r_heading + r_step + r_smooth + r_safety + r_direction
-
+ 
+        return r_potential + r_heading + r_step + r_smooth + r_safety + r_direction 
 
     #  结束条件
     def _check_collision(self) -> bool:
