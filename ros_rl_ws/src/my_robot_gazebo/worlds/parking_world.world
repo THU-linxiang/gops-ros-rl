@@ -4,7 +4,7 @@
 
     <!-- ========== 基础物理设置 ========== -->
     <physics type="ode">
-      <real_time_update_rate>8000</real_time_update_rate>  <!-- 进一步提高上限以争取更高RTF -->
+      <real_time_update_rate>9000</real_time_update_rate>  <!-- 进一步提高上限以争取更高RTF -->
       <max_step_size>0.001</max_step_size>                 <!-- 每步0.001s，仿真精度 -->
       <real_time_factor>1</real_time_factor>               <!-- 1=实时，<1=慢动作，>1=加速 -->
       <ode>

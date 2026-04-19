@@ -65,7 +65,7 @@ class GazeboEnv(gym.Env):
     LIDAR_MAX_RANGE = 10.0
 
     # 最大步数
-    MAX_STEPS = 500
+    MAX_STEPS = 50000
 
     def __init__(self):
         super().__init__()
